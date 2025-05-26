@@ -8,13 +8,13 @@ class SimpleTextEditor:
         self.root = root
         self.root.title("PandaStudio")
         self.root.geometry("800x600")
-        #self.current_font = ("Pet Me 2Y", 18)
+        self.root.configure(bg='black')
         
         self.wrap_activado = False
+
         self.cargar_configuracion_fuente() #Mantener la ultima configuración 
-
-
         self.text_area = tk.Text(root, wrap="word", font=self.current_font, bg=self.bg_color, fg=self.fg_color)
+        self.guardar_configuracion_fuente()
         self.text_area.pack(fill="both", expand=True)
 
         self.menu = tk.Menu(root)
@@ -38,7 +38,6 @@ class SimpleTextEditor:
         custom_menu.add_command(label="Cambiar fondo", command=self.cambiar_color_fondo)
         self.menu.add_cascade(label="Personalizar", menu=custom_menu)
         custom_menu.add_checkbutton(label="Ajuste de línea", command=self.alternar_ajuste_linea, onvalue=True, offvalue=False)
-
 
     def nuevo(self):
         self.text_area.delete(1.0, tk.END)
@@ -84,19 +83,28 @@ class SimpleTextEditor:
                 self.current_font = (fuente, tamaño)
                 self.text_area.config(font=self.current_font)
                 self.guardar_configuracion_fuente()
-
                 ventana_fuente.destroy()
+
             except ValueError:
                 messagebox.showerror("Error", "El tamaño debe ser un número.")
 
         tk.Button(ventana_fuente, text="Aplicar", command=aplicar).pack(pady=10)
 
+    def guardar_configuracion_fuente(self):
+        config = {
+            "fuente": self.current_font[0],
+            "tamaño": self.current_font[1],
+            "color_fondo": self.text_area.cget("bg"),
+            "color_texto": self.text_area.cget("fg")
+        }
+        with open("config_fuente.json", "w", encoding="utf-8") as f:
+            json.dump(config, f)
+
     def cambiar_color_texto(self):
-        color = colorchooser.askcolor(title="Elige un color de texto")[1]
+        color = colorchooser.askcolor(title="Elige un color de texto")[0]
         if color:
             self.text_area.config(fg=color)
             self.guardar_configuracion_fuente()
-
 
     def cambiar_color_fondo(self):
         color = colorchooser.askcolor(title="Elige un color de fondo")[1]
@@ -104,38 +112,34 @@ class SimpleTextEditor:
             self.text_area.config(bg=color)
             self.guardar_configuracion_fuente()
 
-
     def alternar_ajuste_linea(self):
     	self.wrap_activado = not self.wrap_activado
     	nuevo_wrap = "word" if self.wrap_activado else "none"
     	self.text_area.config(wrap=nuevo_wrap)
 
-    def guardar_configuracion_fuente(self):
-        config = {
-            "fuente": self.current_font[0],
-            "tamaño": self.current_font[1],
-            "color_fondo": self.text_area["bg"],
-            "color_texto": self.text_area["fg"]
-        }
-        with open("config_fuente.json", "w", encoding="utf-8") as f:
-            json.dump(config, f)
-
     def cargar_configuracion_fuente(self):
         if os.path.exists("config_fuente.json"):
                 try:
-                    with open("config_fuente.json", "r", encoding="utf-8") as f:
-                        config = json.load(f)
-                        fuente = config.get("fuente", "Pet Me 2Y")
-                        tamaño = config.get("tamaño", 18)
-                        self.current_font = (fuente, tamaño)
-                        self.bg_color = config.get("color_fondo", "black")
-                        self.fg_color = config.get("color_texto", "salmon")
+                  with open("config_fuente.json", "r", encoding="utf-8") as f:
+                      config = json.load(f)
+                      fuente = config.get("fuente", "Pet Me 2Y")
+                      tamaño = config.get("tamaño", 18)
+                      self.bg_color = config.get("color_fondo","black")
+                      self.fg_color = config.get("color_texto", "salmon")
+                      self.current_font = (fuente, tamaño)
+
 
                 except Exception as e:
                     print("Error al cargar configuración:", e)
-                    self.current_font = ("Arial", 12)
+                    self.current_font = ("Pet Me 2Y", 18)
+                    self.bg_color = "black"
+                    self.fg_color = "salmon"
+
         else:
                 self.current_font = ("Arial", 12)
+                self.bg_color = "black"
+                self.fg_color = "salmon"
+
 
 
 
