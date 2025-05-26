@@ -17,7 +17,7 @@ _Saludos_
 * Ajuste de línea automatico
 * Mantiene la configuración personalizada
 
-## Funciones
+## Funciones pendientes
 
 * Colocar hora y fecha
 * Buscar
