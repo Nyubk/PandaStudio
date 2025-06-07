@@ -1,28 +1,66 @@
 import tkinter as tk
 import json
 import os
+import re 
 from tkinter import filedialog, messagebox, font, colorchooser, ttk
 
 class SimpleTextEditor:
+
     def __init__(self, root):
         self.root = root
         self.root.title("PandaStudio")
         self.root.geometry("800x600")
-        self.root.configure(bg='black')
-        
-        self.wrap_activado = False
 
-        self.cargar_configuracion_fuente() #Mantener la ultima configuración 
-        self.text_area = tk.Text(root, wrap="word", font=self.current_font, bg=self.bg_color, fg=self.fg_color)
-        self.guardar_configuracion_fuente()
-        self.text_area.pack(fill="both", expand=True)
+        self.wrap_activado = False
+        self.mostrar_lineas = tk.BooleanVar(value=False)
+
+        self.cargar_configuracion_fuente()
+
+        # Contenedor principal con Frame para alinear widgets a la izquierda
+        self.editor_frame = tk.Frame(root)
+        self.editor_frame.pack(fill="both", expand=True)
+
+        # Área de texto principal
+        self.text_area = tk.Text(self.editor_frame, wrap="word", font=self.current_font,
+                                 bg=self.bg_color, fg=self.fg_color,insertbackground="white")
+        self.text_area.pack(side='right', fill="both", expand=True)
+
+        # Área de números de línea
+        self.line_numbers = tk.Text(self.editor_frame, width=4, padx=4, takefocus=0, border=1,
+                                    background='gray20', foreground='white', 
+                                    font= "bold", relief = "sunken", state='disabled')
+        
+        if self.mostrar_lineas.get():
+            self.line_numbers.pack(side='left', fill='both')
+
+        self.line_numbers.config(font=("Pet Me 2Y",self.current_font[1]))
+
+        self.text_area.tag_configure("funcion", foreground="violet", 
+                                 font= (self.current_font[0], self.current_font[1], "bold"))
+        self.text_area.tag_configure("clase", foreground="yellow")
+        self.text_area.tag_configure("comentario", foreground="lightgreen")
+        self.text_area.tag_configure("cadena", foreground="red")
+        self.text_area.tag_configure("keyword", foreground="cyan")
+
+        self.text_area.bind('<KeyRelease>', self.actualizar_numeros_linea)
+        self.text_area.bind('<MouseWheel>', self.actualizar_numeros_linea)
+        self.text_area.bind("<Configure>", self.actualizar_numeros_linea)
+        self.text_area.bind('<ButtonRelease>', self.actualizar_numeros_linea)
+
+        self.text_area.bind("<Configure>", self.line_numbers)
+
+        self.text_area.bind("<KeyRelease>", self.resaltar_funciones, add="+")
+        self.text_area.bind("<KeyRelease>", self.resaltar_sintaxis, add="+")
+
 
         self.menu = tk.Menu(root)
         self.root.config(menu=self.menu)
         self.create_menus()
 
+#Inician funciones del editor
+
+
     def create_menus(self):
-        # Archivo
         file_menu = tk.Menu(self.menu, tearoff=0)
         file_menu.add_command(label="Nuevo", command=self.nuevo)
         file_menu.add_command(label="Abrir", command=self.abrir)
@@ -31,13 +69,15 @@ class SimpleTextEditor:
         file_menu.add_command(label="Salir", command=self.root.quit)
         self.menu.add_cascade(label="Archivo", menu=file_menu)
 
-        # Personalizar
         custom_menu = tk.Menu(self.menu, tearoff=0)
         custom_menu.add_command(label="Cambiar fuente", command=self.cambiar_fuente)
         custom_menu.add_command(label="Cambiar color de texto", command=self.cambiar_color_texto)
         custom_menu.add_command(label="Cambiar fondo", command=self.cambiar_color_fondo)
+        custom_menu.add_checkbutton(label="Ajuste de línea", 
+                                 command=self.alternar_ajuste_linea, onvalue=True, offvalue=False)
+        custom_menu.add_checkbutton(label="Mostrar líneas", 
+                                 variable=self.mostrar_lineas, command=self.alternar_lineas)
         self.menu.add_cascade(label="Personalizar", menu=custom_menu)
-        custom_menu.add_checkbutton(label="Ajuste de línea", command=self.alternar_ajuste_linea, onvalue=True, offvalue=False)
 
     def nuevo(self):
         self.text_area.delete(1.0, tk.END)
@@ -68,7 +108,8 @@ class SimpleTextEditor:
 
         tk.Label(ventana_fuente, text="Fuente:").pack(pady=5)
         fuente_var = tk.StringVar(value=self.current_font[0])
-        fuente_combo = ttk.Combobox(ventana_fuente, textvariable=fuente_var, values=fuentes, state="readonly")
+        fuente_combo = ttk.Combobox(ventana_fuente, textvariable=fuente_var,
+                                  values=fuentes, state="readonly")
         fuente_combo.pack()
 
         tk.Label(ventana_fuente, text="Tamaño:").pack(pady=5)
@@ -84,11 +125,46 @@ class SimpleTextEditor:
                 self.text_area.config(font=self.current_font)
                 self.guardar_configuracion_fuente()
                 ventana_fuente.destroy()
-
             except ValueError:
                 messagebox.showerror("Error", "El tamaño debe ser un número.")
 
         tk.Button(ventana_fuente, text="Aplicar", command=aplicar).pack(pady=10)
+
+    def cambiar_color_texto(self):
+        color = colorchooser.askcolor(title="Elige un color de texto")[1]
+        if color:
+            self.text_area.config(fg=color)
+            self.fg_color = color
+            self.guardar_configuracion_fuente()
+
+    def cambiar_color_fondo(self):
+        color = colorchooser.askcolor(title="Elige un color de fondo")[1]
+        if color:
+            self.text_area.config(bg=color)
+            self.bg_color = color
+            self.guardar_configuracion_fuente()
+
+    def alternar_ajuste_linea(self):
+        self.wrap_activado = not self.wrap_activado
+        nuevo_wrap = "word" if self.wrap_activado else "none"
+        self.text_area.config(wrap=nuevo_wrap)
+
+    def alternar_lineas(self):
+        if self.mostrar_lineas.get():
+            self.line_numbers.pack(side='left', fill='y')
+            self.actualizar_numeros_linea()
+        else:
+            self.line_numbers.pack_forget()
+
+    def actualizar_numeros_linea(self, event=None):
+        if not self.mostrar_lineas.get():
+            return
+        self.line_numbers.config(state='normal')
+        self.line_numbers.delete('1.0', tk.END)
+        lineas = int(self.text_area.index('end-1c').split('.')[0])
+        numeros = "\n".join(str(i) for i in range(1, lineas + 1))
+        self.line_numbers.insert('1.0', numeros)
+        self.line_numbers.config(state='disabled')
 
     def guardar_configuracion_fuente(self):
         config = {
@@ -100,47 +176,82 @@ class SimpleTextEditor:
         with open("config_fuente.json", "w", encoding="utf-8") as f:
             json.dump(config, f)
 
-    def cambiar_color_texto(self):
-        color = colorchooser.askcolor(title="Elige un color de texto")[0]
-        if color:
-            self.text_area.config(fg=color)
-            self.guardar_configuracion_fuente()
-
-    def cambiar_color_fondo(self):
-        color = colorchooser.askcolor(title="Elige un color de fondo")[1]
-        if color:
-            self.text_area.config(bg=color)
-            self.guardar_configuracion_fuente()
-
-    def alternar_ajuste_linea(self):
-    	self.wrap_activado = not self.wrap_activado
-    	nuevo_wrap = "word" if self.wrap_activado else "none"
-    	self.text_area.config(wrap=nuevo_wrap)
-
     def cargar_configuracion_fuente(self):
         if os.path.exists("config_fuente.json"):
-                try:
-                  with open("config_fuente.json", "r", encoding="utf-8") as f:
-                      config = json.load(f)
-                      fuente = config.get("fuente", "Pet Me 2Y")
-                      tamaño = config.get("tamaño", 18)
-                      self.bg_color = config.get("color_fondo","black")
-                      self.fg_color = config.get("color_texto", "salmon")
-                      self.current_font = (fuente, tamaño)
-
-
-                except Exception as e:
-                    print("Error al cargar configuración:", e)
-                    self.current_font = ("Pet Me 2Y", 18)
-                    self.bg_color = "black"
-                    self.fg_color = "salmon"
-
+            try:
+                with open("config_fuente.json", "r", encoding="utf-8") as f:
+                    config = json.load(f)
+                    fuente = config.get("fuente", "Gotham")
+                    tamaño = config.get("tamaño", 18)
+                    self.bg_color = config.get("color_fondo", "black")
+                    self.fg_color = config.get("color_texto", "salmon")
+                    self.current_font = (fuente, tamaño)
+            except Exception as e:
+                print("Error al cargar configuración:", e)
+                self.current_font = ("Gotham", 18)
+                self.bg_color = "white"
+                self.fg_color = "black"
         else:
-                self.current_font = ("Arial", 12)
-                self.bg_color = "black"
-                self.fg_color = "salmon"
+            self.current_font = ("Gotham", 18)
+            self.bg_color = "black"
+            self.fg_color = "white"
 
+    def resaltar_funciones(self, event=None):
+        self.text_area.tag_remove("funcion", "1.0", tk.END)
+        patron = r"(?m)^\\s*def\\s+\\w+"
 
+        for match in re.finditer(patron, self.text_area.get("1.0", tk.END)):
+            
+            start = f"{match.start()}c"
+            end = f"{match.end()}c"
+
+            start_index = self.text_area.index(f"1.0+{match.start()}c")
+            end_index = self.text_area.index(f"1.0+{match.end()}c")
+
+            self.text_area.tag_add("funcion", start_index, end_index)
+
+    def resaltar_sintaxis(self, event=None):
+ 
+        texto = self.text_area.get("1.0", tk.END)
+
+    # Elimina etiquetas anteriores
+        self.text_area.tag_remove("funcion", "1.0", tk.END)
+        self.text_area.tag_remove("clase", "1.0", tk.END)
+        self.text_area.tag_remove("comentario", "1.0", tk.END)
+        self.text_area.tag_remove("cadena", "1.0", tk.END)
+        self.text_area.tag_remove("keyword", "1.0", tk.END)
+
+    # Patrones a buscar
+        patrones = {
+            "funcion": r"(?m)^\s*def\s+\w+",
+            "clase": r"(?m)^\s*class\s+\w+",
+            "comentario": r"#.*",
+            "cadena": r"(\"[^\"]*\"|'[^']*')",
+            "keyword": (
+                r"\b(if|else|elif|for|while|return|import|from|as|"
+                r"try|except|finally|with|in|is|and|or|not|pass|"
+                r"break|continue|lambda|yield|global|nonlocal|assert|raise|del)\b"
+             )
+         }
+
+    # Aplicar resaltado
+        for etiqueta, patron in patrones.items():
+            for match in re.finditer(patron, texto):
+                start_index = self.text_area.index(f"1.0+{match.start()}c")
+                end_index = self.text_area.index(f"1.0+{match.end()}c")
+                self.text_area.tag_add(etiqueta, start_index, end_index)
+
+    def actualizar_numeros_linea(self, event=None): 
+        if not self.mostrar_lineas.get():
+            return
+        self.line_numbers.config(state='normal')
+        self.line_numbers.delete('1.0', tk.END)
+        lineas = int(self.text_area.index('end-1c').split('.')[0])
+        ancho = len(str(lineas)) + 1
+        self.line_numbers.config(width=ancho)
+        numeros = "\n".join(str(i) for i in range(1, lineas + 1))
+        self.line_numbers.insert('1.0', numeros)
+        self.line_numbers.config(state='disabled')
 
 
 if __name__ == "__main__":
